@@ -403,7 +403,7 @@ function initMap() {
 
 async function loadData() {
   try {
-    const res = await fetch('/stations');
+    const res = await fetch('https://regie-essence-proxy.onrender.com/stations');
     if (!res.ok) throw new Error('Erreur serveur : ' + res.status);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
