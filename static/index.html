@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Régie Essence Québec</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.10);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --text-muted: #6b6b67;
+    --text-faint: #9a9a95;
+    --green: #1D9E75;
+    --green-bg: #E1F5EE;
+    --blue: #185FA5;
+    --blue-bg: #E6F1FB;
+    --amber: #BA7517;
+    --amber-bg: #FAEEDA;
+    --red: #A32D2D;
+    --red-bg: #FCEBEB;
+    --accent: #185FA5;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border);
+    padding: 0 16px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .logo span { color: var(--accent); }
+
+  #last-update {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-left: auto;
+  }
+
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 360px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-right: 0.5px solid var(--border);
+    overflow: hidden;
+  }
+
+  #controls {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-bottom: 0.5px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  #search {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 13px;
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #search:focus { border-color: var(--accent); }
+
+  .row { display: flex; gap: 8px; align-items: center; }
+
+  .ctrl-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-label { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); }
+
+  select {
+    padding: 7px 8px;
+    font-size: 13px;
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+    width: 100%;
+  }
+
+  .sort-group { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .sort-btn {
+    font-size: 12px;
+    padding: 5px 11px;
+    border-radius: 20px;
+    border: 0.5px solid var(--border-strong);
+    background: var(--bg);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .sort-btn:hover { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+  .sort-btn.active { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); font-weight: 600; }
+
+  #loc-btn {
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: var(--radius-sm);
+    border: 0.5px solid var(--border-strong);
+    background: var(--bg);
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+    flex-shrink: 0;
+  }
+  #loc-btn:hover { background: var(--blue-bg); color: var(--blue); border-color: var(--blue); }
+  #loc-btn.active { background: var(--blue-bg); color: var(--blue); border-color: var(--blue); }
+
+  #stats-bar {
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    background: var(--bg);
+  }
+
+  #avg-label { font-weight: 600; color: var(--text); }
+
+  #station-list {
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  .station-card {
+    padding: 11px 12px;
+    border-bottom: 0.5px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+  }
+  .station-card:hover { background: var(--bg); }
+  .station-card.selected { background: var(--blue-bg); }
+  .station-card.selected .station-name { color: var(--blue); }
+
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+
+  .station-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .main-price {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--green);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .main-price.mid { color: var(--amber); }
+  .main-price.high { color: var(--red); }
+  .main-price.na { color: var(--text-faint); font-size: 13px; font-weight: 400; }
+
+  .station-addr {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .price-row {
+    display: flex;
+    gap: 5px;
+    margin-top: 7px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .pill {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+    border: 0.5px solid transparent;
+  }
+  .pill-ord { background: var(--green-bg); color: var(--green); border-color: #9FE1CB; }
+  .pill-sup { background: var(--blue-bg); color: var(--blue); border-color: #B5D4F4; }
+  .pill-die { background: var(--amber-bg); color: var(--amber); border-color: #FAC775; }
+
+  .dist-tag {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-faint);
+    white-space: nowrap;
+  }
+
+  /* ── Map ── */
+  #map-wrap {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+  }
+
+  #map { width: 100%; height: 100%; }
+
+  #map-legend {
+    position: absolute;
+    bottom: 28px;
+    right: 10px;
+    background: rgba(255,255,255,0.94);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Loading / error ── */
+  #status-msg {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .err { color: var(--red); font-size: 13px; }
+
+  .leaflet-popup-content { font-size: 13px; line-height: 1.6; }
+  .leaflet-popup-content strong { font-size: 14px; display: block; margin-bottom: 4px; }
+
+  /* ── Responsive mobile ── */
+  @media (max-width: 700px) {
+    #main { flex-direction: column-reverse; }
+    #sidebar {
+      width: 100%;
+      height: 45vh;
+      border-right: none;
+      border-top: 0.5px solid var(--border);
+    }
+    #map-wrap { height: 55vh; flex: none; }
+    #controls { flex-direction: column; gap: 8px; }
+    .row { flex-wrap: wrap; }
+    #loc-btn { width: 100%; }
+    .sort-group { gap: 6px; }
+    .sort-btn { flex: 1; text-align: center; }
+    header { height: 40px; padding: 0 12px; }
+    .logo { font-size: 14px; }
+    #last-update { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Régie Essence <span>Québec</span></div>
+  <div id="last-update"></div>
+</header>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="controls">
+      <input id="search" type="text" placeholder="Rechercher enseigne, ville, adresse..." oninput="filterAndRender()" />
+      <div class="row">
+        <div class="ctrl-group">
+          <div class="ctrl-label">Carburant affiché</div>
+          <select id="fuel-select" autocomplete="off" onchange="onFuelChange()">
+            <option value="ordinaire">Ordinaire</option>
+            <option value="super">Super</option>
+            <option value="diesel">Diesel</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
+          <button id="loc-btn" onclick="locateMe()">📍 Ma position</button>
+          <input id="addr-input" type="text" placeholder="Code postal (ex: G1J 2S5)…"
+            style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);width:100%;text-transform:uppercase;letter-spacing:0.05em;"
+            oninput="formatPostal(this)"
+            onkeydown="if(event.key==='Enter')geocodeAddr(this.value)" />
+        </div>
+      </div>
+      <div>
+        <div class="ctrl-label" style="margin-bottom:6px;">Trier par</div>
+        <div class="sort-group">
+          <button class="sort-btn active" id="btn-prix" data-sort="prix" onclick="setSort('prix')">Prix ↑</button>
+          <button class="sort-btn" data-sort="proximite" onclick="setSort('proximite')">Proximité</button>
+          <button class="sort-btn" data-sort="nom" onclick="setSort('nom')">Nom A–Z</button>
+          <button class="sort-btn" onclick="resetMap()" style="margin-left:auto;">🔄 Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="stats-bar">
+      <span id="count-label">—</span>
+      <span id="avg-label"></span>
+    </div>
+
+    <div id="station-list">
+      <div id="status-msg"><span class="spinner"></span> Chargement des données…</div>
+    </div>
+  </div>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div id="map-legend">
+      <div style="font-weight:600;margin-bottom:2px;color:var(--text);">Prix relatif</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>Moins cher</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EF9F27"></div>Moyen</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#E24B4A"></div>Plus cher</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#cccccc;border:1px solid #aaa;"></div>N/D</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let map, markerLayer;
+let allStations = [];
+let filtered = [];
+let markers = {};
+let selectedId = null;
+let sortMode = 'prix';
+let prixAsc = true;
+let userLat = null, userLng = null;
+let priceMin = 0, priceMax = 0;
+
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([46.8, -71.2], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+}
+
+async function loadData() {
+  try {
+    const res = await fetch('/stations');
+    if (!res.ok) throw new Error('Erreur serveur : ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    parseGeoJSON(data);
+  } catch (e) {
+    document.getElementById('status-msg').innerHTML =
+      '<span class="err">⚠ Impossible de charger les données<br>' + e.message + '</span>';
+  }
+}
+
+function parsePrice(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseFloat(String(v).replace(',', '.').replace(/[^\d.]/g, ''));
+  return isNaN(n) ? null : n;
+}
+
+function getPriceByType(prices, type) {
+  // Correspondance exacte sur les valeurs réelles de la Régie
+  const MAP = {
+    ordinaire: ['Régulier', 'Regulier', 'Regular', 'régulier'],
+    super:     ['Super', 'Premium', 'super'],
+    diesel:    ['Diesel', 'diesel']
+  };
+  const keys = MAP[type] || [];
+  const entry = prices.find(p => keys.includes(p.GasType || p.gasType || ''));
+  if (!entry) return null;
+  if (entry.IsAvailable === false) return null;
+  return parsePrice(entry.Price ?? entry.price ?? null);
+}
+
+function parseGeoJSON(data) {
+  allStations = [];
+  const features = data.features || [];
+
+  features.forEach((f, i) => {
+    const p = f.properties || {};
+    const coords = f.geometry && f.geometry.coordinates;
+    if (!coords || coords.length < 2) return;
+    const [lng, lat] = coords;
+    const prices = p.Prices || p.prices || [];
+
+    allStations.push({
+      id:        String(p.id || p.ID || i),
+      nom:       p.brand || p.Brand || (p.Name !== 'Aucun' ? p.Name : '') || p.name || 'Station',
+      nomLegal:  p.Name  || p.name  || '',
+      adresse:   p.Address || p.address || '',
+      ville:     p.City || p.city || p.Municipality || p.municipality || '',
+      region:    p.Region || p.region || '',
+      postal:    p.PostalCode || p.postalCode || '',
+      ordinaire: getPriceByType(prices, 'ordinaire'),
+      super:     getPriceByType(prices, 'super'),
+      diesel:    getPriceByType(prices, 'diesel'),
+      lat,
+      lng,
+      dist: null,
+    });
+  });
+
+  if (allStations.length === 0) {
+    document.getElementById('status-msg').innerHTML = '<span class="err">Aucune station trouv\u00e9e.</span>';
+    return;
+  }
+
+  document.getElementById('last-update').textContent =
+    'Donn\u00e9es en direct \u00b7 ' + new Date().toLocaleTimeString('fr-CA', {hour:'2-digit', minute:'2-digit'});
+
+  filterAndRender();
+  renderMarkers();
+}
+
+function resetMap() {
+  map.setView([46.8, -71.2], 7);
+  document.getElementById('search').value = '';
+  document.getElementById('addr-input').value = '';
+  document.getElementById('fuel-select').value = 'ordinaire';
+  document.getElementById('loc-btn').classList.remove('active');
+  userLat = null;
+  userLng = null;
+  allStations.forEach(s => { s.dist = null; });
+  sortMode = 'prix';
+  prixAsc = true;
+  document.querySelectorAll('.sort-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.sort === 'prix')
+  );
+  const btnPrix = document.getElementById('btn-prix');
+  if (btnPrix) btnPrix.textContent = 'Prix ↑';
+  filterAndRender();
+  renderMarkers();
+}
+
+function setSort(mode) {
+  if (mode === 'prix' && sortMode === 'prix') {
+    prixAsc = !prixAsc;
+  } else {
+    sortMode = mode;
+  }
+  document.querySelectorAll('.sort-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.sort === sortMode)
+  );
+  const btnPrix = document.getElementById('btn-prix');
+  if (btnPrix) btnPrix.textContent = 'Prix ' + (prixAsc ? '↑' : '↓');
+  if (mode === 'proximite' && userLat === null) {
+    locateMe();
+    return;
+  }
+  filterAndRender();
+}
+
+function locateMe() {
+  if (!navigator.geolocation) {
+    alert('Géolocalisation non disponible. Entre ton code postal ci-dessous.');
+    return;
+  }
+  const btn = document.getElementById('loc-btn');
+  btn.textContent = '⏳…';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      btn.textContent = '📍 Ma position';
+      btn.classList.add('active');
+      map.setView([userLat, userLng], 13);
+      L.circleMarker([userLat, userLng], {
+        radius: 9, fillColor: '#185FA5', fillOpacity: 1,
+        color: '#fff', weight: 2.5, zIndexOffset: 9999
+      }).addTo(map).bindPopup('<strong>Votre position</strong>').openPopup();
+      allStations.forEach(s => { s.dist = haversine(userLat, userLng, s.lat, s.lng); });
+      setSort('proximite');
+    },
+    () => {
+      btn.textContent = '📍 Ma position';
+      alert('Géolocalisation refusée.\nEntre ton code postal dans le champ ci-dessous.');
+    }
+  );
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function onFuelChange() {
+  filterAndRender();
+  renderMarkers();
+}
+
+function filterAndRender() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  const fuel = document.getElementById('fuel-select').value;
+
+  // Limiter aux stations visibles sur la carte
+  const bounds = map ? map.getBounds() : null;
+
+  filtered = allStations.filter(s => {
+    if (bounds && !bounds.contains([s.lat, s.lng])) return false;
+    if (!q) return true;
+    return (s.nom + ' ' + s.adresse + ' ' + s.ville + ' ' + s.region)
+      .toLowerCase().includes(q);
+  });
+
+  filtered.sort((a, b) => {
+    if (sortMode === 'prix') {
+      const pa = a[fuel], pb = b[fuel];
+      if (pa === null && pb === null) return 0;
+      if (pa === null) return 1;
+      if (pb === null) return -1;
+      return prixAsc ? pa - pb : pb - pa;
+    }
+    if (sortMode === 'proximite') {
+      if (a.dist === null && b.dist === null) return 0;
+      if (a.dist === null) return 1;
+      if (b.dist === null) return -1;
+      return a.dist - b.dist;
+    }
+    return (a.nom || '').localeCompare(b.nom || '', 'fr');
+  });
+
+  const prices = filtered.map(s => s[fuel]).filter(p => p !== null);
+  priceMin = prices.length ? Math.min(...prices) : 0;
+  priceMax = prices.length ? Math.max(...prices) : 0;
+
+  renderList();
+  updateStats();
+}
+
+function priceClass(price, fuel) {
+  if (price === null) return 'na';
+  if (priceMin === priceMax) return '';
+  const ratio = (price - priceMin) / (priceMax - priceMin);
+  if (ratio < 0.33) return '';
+  if (ratio < 0.66) return 'mid';
+  return 'high';
+}
+
+function fmtDist(d) {
+  if (d === null) return '';
+  return d < 1 ? Math.round(d * 1000) + ' m' : d.toFixed(1) + ' km';
+}
+
+function renderList() {
+  const list = document.getElementById('station-list');
+  const fuel = document.getElementById('fuel-select').value;
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div id="status-msg">Aucune station trouvée.</div>';
+    return;
+  }
+
+  const show = filtered.slice(0, 300);
+  list.innerHTML = show.map(s => {
+    const price = s[fuel];
+    const cls = priceClass(price, fuel);
+    const isSel = s.id === selectedId;
+    const distStr = fmtDist(s.dist);
+    const addr = [s.adresse, s.ville].filter(Boolean).join(', ');
+
+    // Afficher les 3 prix, mettre en évidence le carburant sélectionné
+    const priceRows = [
+      { key: 'ordinaire', label: 'Ordinaire', cls: 'pill-ord', active: fuel === 'ordinaire' },
+      { key: 'super',     label: 'Super',     cls: 'pill-sup', active: fuel === 'super' },
+      { key: 'diesel',    label: 'Diesel',    cls: 'pill-die', active: fuel === 'diesel' },
+    ].filter(r => s[r.key] !== null).map(r => {
+      const activeStyle = r.active
+        ? 'font-weight:700;font-size:12px;padding:3px 9px;'
+        : 'opacity:0.75;';
+      return `<span class="pill ${r.cls}" style="${activeStyle}">${r.label} ${s[r.key].toFixed(1)}¢</span>`;
+    }).join('');
+
+    return `<div class="station-card${isSel ? ' selected' : ''}" onclick="selectStation('${s.id}')">
+      <div class="card-top">
+        <div class="station-name">${s.nom}</div>
+        ${distStr ? `<span class="dist-tag">📍 ${distStr}</span>` : ''}
+      </div>
+      <div class="station-addr">${addr || '—'}</div>
+      <div class="price-row" style="margin-top:6px;">
+        ${priceRows || '<span style="font-size:11px;color:var(--text-faint);">Prix non disponible</span>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateStats() {
+  const fuel = document.getElementById('fuel-select').value;
+  const prices = filtered.map(s => s[fuel]).filter(p => p !== null);
+  const n = filtered.length;
+  const avg = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : null;
+  document.getElementById('count-label').textContent = n + ' station' + (n !== 1 ? 's' : '');
+  document.getElementById('avg-label').textContent = avg ? 'Moy. ' + avg.toFixed(1) + ' ¢/L' : '';
+}
+
+function dotColor(price) {
+  if (price === null) return '#cccccc';
+  if (priceMin === priceMax) return '#1D9E75';
+  const ratio = (price - priceMin) / (priceMax - priceMin);
+  if (ratio < 0.33) return '#1D9E75';
+  if (ratio < 0.66) return '#EF9F27';
+  return '#E24B4A';
+}
+
+function getVisibleStations() {
+  if (!map) return [];
+  const bounds = map.getBounds();
+  return allStations.filter(s => bounds.contains([s.lat, s.lng]));
+}
+
+function makeIcon(color, price, showLabel) {
+  const fuel = document.getElementById('fuel-select').value;
+  if (showLabel && price !== null) {
+    const priceStr = price.toFixed(1);
+    return L.divIcon({
+      className: '',
+      html: `<div style="
+        background:${color};
+        color:#fff;
+        font-size:11px;
+        font-weight:700;
+        padding:3px 6px;
+        border-radius:10px;
+        border:1.5px solid rgba(255,255,255,0.9);
+        box-shadow:0 1px 4px rgba(0,0,0,0.3);
+        white-space:nowrap;
+        line-height:1.2;
+      ">${priceStr}¢</div>`,
+      iconSize: null,
+      iconAnchor: [20, 10],
+      popupAnchor: [0, -14]
+    });
+  }
+  const borderColor = color === '#cccccc' ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.85)';
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:${color};width:10px;height:10px;border-radius:50%;border:1.5px solid ${borderColor};box-shadow:0 1px 3px rgba(0,0,0,0.25);"></div>`,
+    iconSize: [10, 10],
+    iconAnchor: [5, 5],
+    popupAnchor: [0, -8]
+  });
+}
+
+function updateMarkerLabels() {
+  const fuel = document.getElementById('fuel-select').value;
+  const visible = getVisibleStations();
+  const showLabels = visible.length <= 150;
+
+  // Recalculer min/max sur les stations visibles pour couleurs relatives correctes
+  const visiblePrices = visible.map(s => s[fuel]).filter(p => p !== null);
+  priceMin = visiblePrices.length ? Math.min(...visiblePrices) : 0;
+  priceMax = visiblePrices.length ? Math.max(...visiblePrices) : 0;
+
+  allStations.forEach(s => {
+    if (!markers[s.id]) return;
+    const price = s[fuel];
+    const color = dotColor(price);
+    markers[s.id].setIcon(makeIcon(color, price, showLabels));
+  });
+}
+
+function renderMarkers() {
+  markerLayer.clearLayers();
+  markers = {};
+  const fuel = document.getElementById('fuel-select').value;
+
+  const prices = allStations.map(s => s[fuel]).filter(p => p !== null);
+  priceMin = prices.length ? Math.min(...prices) : 0;
+  priceMax = prices.length ? Math.max(...prices) : 0;
+
+  const visible = getVisibleStations();
+  const showLabels = visible.length <= 150;
+
+  allStations.forEach(s => {
+    const price = s[fuel];
+    const color = dotColor(price);
+
+    const addr = [s.adresse, s.ville].filter(Boolean).join(', ');
+    const popup = `
+      <strong>${s.nom}</strong>
+      ${addr ? `<span style="color:#6b6b67;font-size:12px;">${addr}</span><br>` : ''}
+      ${s.ordinaire !== null ? `⛽ Ordinaire : <b>${s.ordinaire.toFixed(1)} ¢/L</b><br>` : ''}
+      ${s.super !== null ? `⛽ Super : <b>${s.super.toFixed(1)} ¢/L</b><br>` : ''}
+      ${s.diesel !== null ? `⛽ Diesel : <b>${s.diesel.toFixed(1)} ¢/L</b>` : ''}
+    `;
+
+    const m = L.marker([s.lat, s.lng], { icon: makeIcon(color, price, showLabels) })
+      .bindPopup(popup)
+      .addTo(markerLayer);
+
+    m.on('click', () => selectStation(s.id));
+    markers[s.id] = m;
+  });
+}
+
+function selectStation(id) {
+  selectedId = id;
+  const s = allStations.find(x => x.id === id);
+  if (s) {
+    map.setView([s.lat, s.lng], 15);
+    if (markers[id]) markers[id].openPopup();
+  }
+  renderList();
+  requestAnimationFrame(() => {
+    const el = document.querySelector('.station-card.selected');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}
+
+initMap();
+document.getElementById('fuel-select').value = 'ordinaire';
+loadData();
+
+
+
+map.on('zoomend moveend', () => { updateMarkerLabels(); filterAndRender(); });
+
+function formatPostal(input) {
+  // Majuscules + format LnL nLn automatique
+  let v = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (v.length > 3) v = v.slice(0, 3) + ' ' + v.slice(3, 6);
+  input.value = v;
+}
+
+async function geocodeAddr(raw) {
+  if (!raw) raw = '';
+  raw = raw.trim();
+  if (!raw) return;
+
+  // Détecter code postal canadien ex: G1V 2M2 ou G1V2M2
+  const isPostal = /^[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/.test(raw);
+  const postal = isPostal
+    ? raw.toUpperCase().replace(/\s/g,'').slice(0,3) + ' ' + raw.toUpperCase().replace(/\s/g,'').slice(3)
+    : null;
+
+  document.getElementById('loc-btn').textContent = '⏳ Recherche…';
+
+  try {
+    let lat, lng, label;
+
+    if (isPostal) {
+      // geocoder.ca — spécialisé codes postaux canadiens
+      try {
+        const r = await fetch(
+          'https://geocoder.ca/?postal=' + encodeURIComponent(postal.replace(' ','')) + '&json=1'
+        );
+        const d = await r.json();
+        if (d.latt && d.longt && !d.error) {
+          lat = parseFloat(d.latt);
+          lng = parseFloat(d.longt);
+          label = postal;
+        } else { throw new Error('geocoder.ca no result'); }
+      } catch(_) {
+        // Fallback : Nominatim avec postalcode explicite
+        const r2 = await fetch(
+          'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ca' +
+          '&postalcode=' + encodeURIComponent(postal.replace(' ','')) + '&country=Canada',
+          { headers: { 'Accept-Language': 'fr' } }
+        );
+        const d2 = await r2.json();
+        if (!d2.length) { alert('Code postal introuvable : ' + postal); return; }
+        lat = parseFloat(d2[0].lat);
+        lng = parseFloat(d2[0].lon);
+        label = postal;
+      }
+    } else {
+      // Adresse texte
+      const r = await fetch(
+        'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ca&q=' +
+        encodeURIComponent(raw + ', Québec, Canada'),
+        { headers: { 'Accept-Language': 'fr' } }
+      );
+      const d = await r.json();
+      if (!d.length) { alert('Adresse introuvable'); return; }
+      lat = parseFloat(d[0].lat);
+      lng = parseFloat(d[0].lon);
+      label = d[0].display_name.split(',')[0];
+    }
+
+    userLat = lat;
+    userLng = lng;
+    map.setView([userLat, userLng], isPostal ? 15 : 13);
+    L.circleMarker([userLat, userLng], {
+      radius: 9, fillColor: '#185FA5', fillOpacity: 1,
+      color: '#fff', weight: 2.5, zIndexOffset: 9999
+    }).addTo(map).bindPopup('<strong>' + label + '</strong>').openPopup();
+    allStations.forEach(s => { s.dist = haversine(userLat, userLng, s.lat, s.lng); });
+    document.getElementById('loc-btn').classList.add('active');
+    setSort('proximite');
+
+  } catch(e) {
+    alert('Erreur de localisation : ' + e.message);
+  } finally {
+    document.getElementById('loc-btn').textContent = '📍 Ma position';
+  }
+}
+</script>
+
+</div>
+</body>
+</html>

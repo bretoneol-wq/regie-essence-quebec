@@ -1,0 +1,12 @@
+services:
+  regie-essence:
+    build: .
+    container_name: regie-essence
+    ports:
+      - "8765:8765"
+    restart: unless-stopped
+    environment:
+      - TZ=America/Montreal
+      - CACHE_TTL=300
+    volumes:
+      - /home/eol/regie-essence/static:/app/static
