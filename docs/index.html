@@ -476,8 +476,14 @@ function parseGeoJSON(data) {
   document.getElementById('last-update').textContent =
     'Donn\u00e9es en direct \u00b7 ' + new Date().toLocaleTimeString('fr-CA', {hour:'2-digit', minute:'2-digit'});
 
-  filterAndRender();
+  // Précalculer priceMin/priceMax global avant le premier rendu
+  const fuel0 = document.getElementById('fuel-select').value;
+  const prices0 = allStations.map(s => s[fuel0]).filter(p => p !== null);
+  priceMin = prices0.length ? Math.min(...prices0) : 0;
+  priceMax = prices0.length ? Math.max(...prices0) : 0;
+
   renderMarkers();
+  filterAndRender();
 }
 
 function resetMap() {
@@ -712,16 +718,26 @@ function makeIcon(color, price, showLabel) {
   });
 }
 
+let _lastShowLabels = null;
+
 function updateMarkerLabels() {
   const fuel = document.getElementById('fuel-select').value;
   const visible = getVisibleStations();
   const showLabels = visible.length <= 150;
 
-  // Recalculer min/max sur les stations visibles pour couleurs relatives correctes
+  // Recalculer min/max sur les stations visibles
   const visiblePrices = visible.map(s => s[fuel]).filter(p => p !== null);
   priceMin = visiblePrices.length ? Math.min(...visiblePrices) : 0;
   priceMax = visiblePrices.length ? Math.max(...visiblePrices) : 0;
 
+  // Si on change de mode point↔bulle : recréer tous les marqueurs proprement
+  if (showLabels !== _lastShowLabels) {
+    _lastShowLabels = showLabels;
+    renderMarkers();
+    return;
+  }
+
+  // Sinon juste mettre à jour la couleur
   allStations.forEach(s => {
     if (!markers[s.id]) return;
     const price = s[fuel];
@@ -739,8 +755,11 @@ function renderMarkers() {
   priceMin = prices.length ? Math.min(...prices) : 0;
   priceMax = prices.length ? Math.max(...prices) : 0;
 
+  // Au chargement initial, la carte n'est pas encore bougée
+  // On utilise toutes les stations pour décider si on affiche les labels
   const visible = getVisibleStations();
-  const showLabels = visible.length <= 150;
+  const visibleCount = visible.length > 0 ? visible.length : allStations.length;
+  const showLabels = visibleCount <= 150;
 
   allStations.forEach(s => {
     const price = s[fuel];
@@ -784,7 +803,10 @@ loadData();
 
 
 
-map.on('zoomend moveend', () => { updateMarkerLabels(); filterAndRender(); });
+map.on('zoomend moveend', () => {
+  // Petit délai pour que getBounds() reflète la nouvelle vue
+  setTimeout(() => { updateMarkerLabels(); filterAndRender(); }, 50);
+});
 
 function formatPostal(input) {
   // Majuscules + format LnL nLn automatique
